@@ -1,25 +1,27 @@
 import { createClient } from '@supabase/supabase-js';
 
-// Read Supabase credentials from environment or default to placeholder
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || 'https://placeholder.supabase.co';
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || 'placeholder-key';
+// بيانات مشروع Supabase بتاع خدمة إعدادي وثانوي بنات. دي مفاتيح "عامة"
+// (anon) معمولة إنها تبقى ظاهرة في كود أي موقع — الحماية الحقيقية في RLS
+// جوه الداتابيز. محطوطة هنا عشان الموقع يشتغل على Vercel من غير إعدادات.
+// لو فيه .env بقيم تانية، هي اللي بتتاخد. ولتجربة الموقع من غير داتابيز
+// (وضع التجربة) حط VITE_MOCK_MODE=true في .env.
+const DEFAULT_SUPABASE_URL = 'https://pacusjtjmgogolqpicbr.supabase.co';
+const DEFAULT_SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBhY3VzanRqbWdvZ29scXBpY2JyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTAzMjYwOTksImV4cCI6MjEwNTkwMjA5OX0.Xo-LjU8fPpsrPFLHsRyjgNSuYPoofag4dgiklbzUlL4';
+const DEFAULT_VAPID_PUBLIC_KEY = 'BLg6PlDjer-gkph4LXaXj5TfnpcnwnbcKgbKZGr7vwTlLTQtnDBnVbCESZupiGxSZSjnGk_6FI_pECdXBlnagjc';
+
+const MOCK_MODE = import.meta.env.VITE_MOCK_MODE === 'true';
+const envUrl = import.meta.env.VITE_SUPABASE_URL;
+const envKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+const looksReal = (url, key) => !!(url && key && !url.includes('placeholder') && !url.includes('your-') && !key.includes('your-') && key !== 'placeholder-key');
+
+const supabaseUrl = looksReal(envUrl, envKey) ? envUrl : DEFAULT_SUPABASE_URL;
+const supabaseAnonKey = looksReal(envUrl, envKey) ? envKey : DEFAULT_SUPABASE_ANON_KEY;
 
 // Instantiate Supabase client
 export const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
-// Helper to check if real valid Supabase keys are configured
-const isSupabaseConfigured = () => {
-  const url = import.meta.env.VITE_SUPABASE_URL;
-  const key = import.meta.env.VITE_SUPABASE_ANON_KEY;
-  return (
-    url &&
-    key &&
-    url !== 'https://placeholder.supabase.co' &&
-    !url.includes('your-project-id') &&
-    !key.includes('your-anon-key') &&
-    key !== 'placeholder-key'
-  );
-};
+// الموقع دايمًا متوصل بالداتابيز، إلا لو VITE_MOCK_MODE=true.
+const isSupabaseConfigured = () => !MOCK_MODE;
 
 // ==========================================
 // CLASSES (خدمة إعدادي وثانوي بنات — كنيسة مارمينا والبابا كيرلس)
@@ -721,7 +723,7 @@ export async function unmarkGiftReceived(studentId, month, year) {
 // ==========================================
 // إشعارات الموبايل (Web Push)
 // ==========================================
-export const VAPID_PUBLIC_KEY = import.meta.env.VITE_VAPID_PUBLIC_KEY || '';
+export const VAPID_PUBLIC_KEY = (import.meta.env.VITE_VAPID_PUBLIC_KEY || DEFAULT_VAPID_PUBLIC_KEY).trim();
 
 export async function savePushSubscription(subscription) {
   const json = subscription.toJSON ? subscription.toJSON() : subscription;
