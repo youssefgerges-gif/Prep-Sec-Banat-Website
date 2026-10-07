@@ -1,0 +1,135 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    @apply font-cairo bg-slate-50 text-slate-900 transition-colors duration-200;
+    direction: rtl;
+    font-feature-settings: "rlig" 1, "calt" 1;
+  }
+}
+
+.dir-rtl {
+  direction: rtl;
+}
+
+/* Mobile bottom nav bar: some roles (class_admin/assistant_admin,
+   super_admin) now have more buttons than comfortably fit on a narrow
+   phone screen in one row. Rather than let them silently shrink/wrap onto
+   a second line (hard to tap, easy to miss), the row scrolls horizontally
+   instead — every button stays full-size and reachable via a swipe, with
+   the scrollbar itself hidden since the row already visually implies
+   "more" via the icons peeking at the edge. */
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+/* Custom UI Polish & Animations */
+.glass-card {
+  background: rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(226, 232, 240, 0.8);
+}
+
+.gold-gradient {
+  background: linear-gradient(135deg, #fbbf24 0%, #f59e0b 50%, #d97706 100%);
+}
+
+.church-gradient {
+  background: linear-gradient(135deg, #0ea5e9 0%, #0284c7 50%, #0369a1 100%);
+}
+
+.card-hover {
+  transition: all 0.2s ease-in-out;
+}
+.card-hover:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.05), 0 8px 10px -6px rgba(0, 0, 0, 0.01);
+}
+
+/* Pulse Glow Animation for Points */
+@keyframes pulse-glow {
+  0%, 100% {
+    box-shadow: 0 0 15px rgba(245, 158, 11, 0.4);
+  }
+  50% {
+    box-shadow: 0 0 25px rgba(245, 158, 11, 0.8);
+  }
+}
+
+.animate-pulse-glow {
+  animation: pulse-glow 2s infinite ease-in-out;
+}
+
+/* Batch ID-card (كارنيهات) printing — hidden on screen, shown only when
+   printing/saving as PDF. Everything else on the page is hidden during
+   print so only the card grid ends up on the page. */
+#batch-print-cards {
+  display: none;
+}
+
+@media print {
+  @page {
+    size: A4;
+    margin: 10mm;
+  }
+
+  body * {
+    visibility: hidden;
+  }
+
+  #batch-print-cards,
+  #batch-print-cards * {
+    visibility: visible;
+  }
+
+  #batch-print-cards {
+    display: block;
+    position: absolute;
+    inset: 0;
+    width: 100%;
+  }
+
+  /* Without this, most browsers (especially "Save as PDF" on mobile)
+     silently drop CSS background colors/gradients when printing, so the
+     cards' gradient backdrops and the dark overlay tint over each saint
+     photo were printing as plain white. This forces them to print as-is. */
+  #batch-print-cards,
+  #batch-print-cards * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+    color-adjust: exact !important;
+  }
+}
+
+/* html5-qrcode's own camera-picker UI (the "Select Camera" dropdown and
+   camera name label it injects into #reader) is built assuming a wide,
+   left-to-right layout, and isn't aware our page is RTL or that it might
+   render on a narrow phone screen — so its text can overflow past the
+   edge of the screen. Force that subtree to size within its container. */
+#reader {
+  width: 100% !important;
+  max-width: 100%;
+  direction: ltr;
+}
+
+#reader * {
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+#reader select {
+  max-width: 100%;
+  font-size: 11px;
+}
+
+#reader__dashboard_section_csr,
+#reader__dashboard_section_swaplink {
+  word-break: break-word;
+}
