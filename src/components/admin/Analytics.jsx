@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Users, UserCheck, Award, TrendingUp, ChevronLeft, CalendarCheck, GraduationCap, Cake } from 'lucide-react';
-import { getUsers, getAttendanceLogs, getServiceStats, CLASSES, getCairoToday, ARABIC_MONTHS } from '../../services/supabase';
+import { getUsers, getAttendanceLogs, getVerseRecitations, getServiceStats, CLASSES, getCairoToday, ARABIC_MONTHS } from '../../services/supabase';
 import { usePoints } from '../../context/PointsContext';
 import ClassRosterModal from './ClassRosterModal';
 
@@ -11,6 +11,7 @@ export default function Analytics() {
   const { refreshKey } = usePoints();
   const [allUsers, setAllUsers] = useState([]);
   const [attendanceLogs, setAttendanceLogs] = useState([]);
+  const [verseRecitations, setVerseRecitations] = useState([]);
   const [serviceStats, setServiceStats] = useState({ totalPointsDistributed: 0, attendanceRate: '0%', presentCount: 0 });
   const [selectedClass, setSelectedClass] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -18,10 +19,11 @@ export default function Analytics() {
 
   useEffect(() => {
     setLoadError('');
-    Promise.all([getUsers(), getAttendanceLogs(), getServiceStats()])
-      .then(([users, logs, stats]) => {
+    Promise.all([getUsers(), getAttendanceLogs(), getServiceStats(), getVerseRecitations().catch(() => [])])
+      .then(([users, logs, stats, verses]) => {
         setAllUsers(users);
         setAttendanceLogs(logs);
+        setVerseRecitations(verses);
         setServiceStats(stats);
       })
       .catch(err => setLoadError(err.message || 'تعذر تحميل الإحصائيات'))
@@ -108,7 +110,7 @@ export default function Analytics() {
           <h3 className="font-extrabold text-slate-900 text-base flex items-center gap-2">
             <GraduationCap className="w-5 h-5 text-sky-600" /> الفصول
           </h3>
-          <p className="text-[11px] text-slate-400 font-bold mt-1">اضغط على أي فصل عشان تشوف المخدومات فيه، ومين حاضرة ومين غايبة، وتسجّل حضور بلمسة 👇</p>
+          <p className="text-[11px] text-slate-400 font-bold mt-1">اضغط على أي فصل عشان تشوف المخدومات فيه، وتسجّل الحضور وتسميع الآية بلمسة 👇</p>
         </div>
 
         {stages.map(stage => (
@@ -148,6 +150,7 @@ export default function Analytics() {
         classInfo={selectedClass}
         users={allUsers}
         attendanceLogs={attendanceLogs}
+        verseRecitations={verseRecitations}
       />
 
     </div>

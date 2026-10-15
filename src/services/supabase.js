@@ -133,6 +133,13 @@ const ATTENDANCE_REASONS = [
   'حضور في الميعاد (لحد 6:05 م)', 'حضور متأخر (بعد 6:05 م)', 'حضور اجتماع مدارس الأحد (رمز QR)'
 ];
 
+// تسميع الآية: 3 نقاط زيادة للمخدومة اللي سمّعت، فوق نقاط الحضور (يعني
+// 5+3 = 8 لو جت بدري، و2+3 = 5 لو جت متأخر). بيتسجل كصف نقاط بنفس وقت
+// سجل الحضور، فبيترتبط بالحضور ده بالظبط — ولو الحضور اتلغى، التسميع
+// بيتلغي معاه.
+export const VERSE_POINTS = 3;
+const VERSE_REASON = 'تسميع الآية';
+
 // هل النهارده خميس بتوقيت القاهرة؟
 export function isMeetingDay(date = new Date()) {
   const day = new Intl.DateTimeFormat('en-US', { timeZone: MEETING_TIMEZONE, weekday: 'short' }).format(date);
@@ -291,7 +298,7 @@ export async function cancelAttendance({ attendanceLogId, studentId, timestamp }
         .delete()
         .eq('student_id', studentId)
         .eq('created_at', timestamp)
-        .in('reason', ATTENDANCE_REASONS);
+        .in('reason', [...ATTENDANCE_REASONS, VERSE_REASON]);
       if (ledgerError) console.error('Failed to remove attendance points on undo:', ledgerError);
     }
     return { success: true };
@@ -303,9 +310,70 @@ export async function cancelAttendance({ attendanceLogId, studentId, timestamp }
     db.points_ledger = db.points_ledger.filter(p => !(
       p.student_id === studentId &&
       p.created_at === timestamp &&
-      ATTENDANCE_REASONS.includes(p.reason)
+      (ATTENDANCE_REASONS.includes(p.reason) || p.reason === VERSE_REASON)
     ));
   }
+  saveMockData(db);
+  return { success: true };
+}
+
+// ==========================================
+// تسميع الآية (من كشف الفصل في الإحصائيات)
+// ==========================================
+// كل صفوف نقاط التسميع: { id, student_id, created_at }.
+export async function getVerseRecitations() {
+  if (isSupabaseConfigured()) {
+    const { data, error } = await supabase
+      .from('points_ledger')
+      .select('id, student_id, created_at')
+      .eq('reason', VERSE_REASON);
+    if (error) throw error;
+    return data || [];
+  }
+  return (getMockData().points_ledger || [])
+    .filter(p => p.reason === VERSE_REASON)
+    .map(({ id, student_id, created_at }) => ({ id, student_id, created_at }));
+}
+
+// تسجيل إن المخدومة سمّعت الآية في الحضور ده (attendanceTimestamp = وقت سجل
+// حضورها). لازم تكون حاضرة الأول، ومرة واحدة بس لكل حضور.
+export async function recordVerseRecitation({ studentId, attendanceTimestamp } = {}) {
+  if (!studentId || !attendanceTimestamp) throw new Error('لازم تسجل حضور المخدومة الأول قبل التسميع');
+  const sameTime = (a, b) => new Date(a).getTime() === new Date(b).getTime();
+
+  if (isSupabaseConfigured()) {
+    const { data, error } = await supabase
+      .from('points_ledger')
+      .insert([{ student_id: studentId, amount: VERSE_POINTS, reason: VERSE_REASON, servant_id: 'system', created_at: attendanceTimestamp }])
+      .select('id, student_id, created_at')
+      .single();
+    if (error) {
+      if (error.code === '23505') throw new Error('التسميع متسجل للمخدومة دي قبل كده');
+      throw new Error(error.message || 'تعذر تسجيل التسميع');
+    }
+    return data;
+  }
+
+  const db = getMockData();
+  if (db.points_ledger.some(p => p.student_id === studentId && p.reason === VERSE_REASON && sameTime(p.created_at, attendanceTimestamp))) {
+    throw new Error('التسميع متسجل للمخدومة دي قبل كده');
+  }
+  const row = { id: `pt-v-${Date.now()}`, student_id: studentId, amount: VERSE_POINTS, reason: VERSE_REASON, servant_id: 'system', created_at: attendanceTimestamp };
+  db.points_ledger.push(row);
+  saveMockData(db);
+  return { id: row.id, student_id: studentId, created_at: attendanceTimestamp };
+}
+
+// التراجع عن التسميع (بيشيل الـ3 نقاط بس، والحضور بيفضل زي ما هو).
+export async function cancelVerseRecitation(recitationId) {
+  if (!recitationId) throw new Error('مفيش تسميع متسجل يتلغي');
+  if (isSupabaseConfigured()) {
+    const { error } = await supabase.from('points_ledger').delete().eq('id', recitationId).eq('reason', VERSE_REASON);
+    if (error) throw new Error(error.message || 'تعذر إلغاء التسميع');
+    return { success: true };
+  }
+  const db = getMockData();
+  db.points_ledger = db.points_ledger.filter(p => !(p.id === recitationId && p.reason === VERSE_REASON));
   saveMockData(db);
   return { success: true };
 }

@@ -1,49 +1,70 @@
 import React, { useState } from 'react';
-import { UserCircle2, Phone, MapPin, Users2, Save, Loader2, ShieldCheck, RefreshCcw, Cake, Church, User } from 'lucide-react';
+import { UserCircle2, Phone, MapPin, Users2, Save, Loader2, ShieldCheck, RefreshCcw, Cake } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { usePoints } from '../../context/PointsContext';
-import { updateOwnProfile, switchTrainingRole, CLASSES, DEFAULT_CLASS_ID, getClassName, ROLE_LABELS } from '../../services/supabase';
+import { updateOwnProfile, switchTrainingRole, CLASSES } from '../../services/supabase';
 
-// "بياناتي" — لأي حساب (أمين الخدمة / خادم / مخدومة): يعدّل اسمه وتليفونه
-// وتاريخ ميلاده وعنوانه وأب اعترافه (ورقم ولي الأمر للمخدومة). الدور والفصل
-// والكود مش بيتغيروا من هنا. الحفظ والصلاحيات في update_own_profile().
-// ولو الحساب "حساب تدريب"، بيظهر كمان تبديل الدور (خادم / مخدومة).
+const ROLE_LABELS = {
+  super_admin: '👑 أمين خدمة عامة',
+  class_admin: '⛪️ أمين فصل',
+  assistant_admin: '🤝 أمين فصل مساعد',
+  servant: '✝️ خادم',
+  student: '🧒 مخدوم'
+};
+
+// طلب Mr. Gerges 2026-09-25: شاشة "بياناتي" — متاحة لأي حساب (أي دور)، بتوري
+// بياناته الأساسية وتسيبه يعدّل رقم تليفونه (وعنوانه ورقم ولي أمره لو
+// مخدوم) بنفسه. الاسم/الدور/الفصل/كود الدخول لسه للعرض بس هنا — تغييرهم
+// لسه حصري لأمين الخدمة من شاشة "الخدام والمخدومين"، والحفظ الفعلي والتحقق
+// من الصلاحية بيتم كله سيرفر سايد جوه update_own_profile() في schema.sql.
 export default function MyProfile() {
   const { currentUser, refreshProfile } = useAuth();
   const { showToast } = usePoints();
 
   const isStudent = currentUser?.role === 'student';
   const isTrainingAccount = !!currentUser?.is_training_account;
+  const className = currentUser?.class_id && currentUser.class_id !== 'all'
+    ? CLASSES.find(c => c.id === currentUser.class_id)?.name
+    : null;
 
+  // طلب Mr. Gerges 2026-10-14: الخدام (أي دور غير المخدوم) يعدّلوا اسمهم بنفسهم.
   const [name, setName] = useState(currentUser?.name || '');
-  const [confessionFather, setConfessionFather] = useState(currentUser?.confession_father || '');
   const [phone, setPhone] = useState(currentUser?.phone || '');
   const [address, setAddress] = useState(currentUser?.address || '');
   const [guardianPhone, setGuardianPhone] = useState(currentUser?.guardian_phone || '');
+  // طلب Mr. Gerges 2026-09-27: تاريخ الميلاد بقى قابل للتعديل الذاتي لأي
+  // دور (مش بس المخدوم) — عشان أمين الخدمة يقدر يشوف "أعياد ميلاد الشهر
+  // ده" لكل الخدام في الإحصائيات العامة.
   const [birthDate, setBirthDate] = useState(currentUser?.birth_date || '');
   const [saving, setSaving] = useState(false);
 
+  // حساب التدريب بس — تبديل الدور، شوف switch_training_role() في schema.sql
   const [trainingRole, setTrainingRole] = useState(currentUser?.role || 'servant');
-  const [trainingClass, setTrainingClass] = useState(currentUser?.class_id || DEFAULT_CLASS_ID);
+  const [trainingClass, setTrainingClass] = useState(
+    currentUser?.class_id && currentUser.class_id !== 'all' ? currentUser.class_id : CLASSES[0]?.id
+  );
   const [switching, setSwitching] = useState(false);
 
   if (!currentUser) return null;
 
   const handleSave = async () => {
+    if (!isStudent && !name.trim()) {
+      showToast('خطأ', 'الاسم مطلوب ولا يمكن تركه فاضي', 0, 'error');
+      return;
+    }
     setSaving(true);
     try {
       await updateOwnProfile({
         userId: currentUser.id,
-        name: name.trim(),
+        name: isStudent ? null : name.trim(),
         phone,
-        address,
-        confessionFather,
+        address: isStudent ? address : null,
         guardianPhone: isStudent ? guardianPhone : null,
         birthDate: birthDate || null,
         clearBirthDate: !birthDate
       });
       await refreshProfile();
-      showToast('تم الحفظ ✏️', 'بياناتك اتحدثت', 0, 'success');
+      showToast('تم الحفظ ✏️', 'بياناتك اتحدثت بنجاح', 0, 'success');
     } catch (err) {
       showToast('خطأ', err.message || 'تعذر حفظ البيانات', 0, 'error');
     } finally {
@@ -54,9 +75,13 @@ export default function MyProfile() {
   const handleSwitchRole = async () => {
     setSwitching(true);
     try {
-      await switchTrainingRole({ userId: currentUser.id, role: trainingRole, classId: trainingClass });
+      await switchTrainingRole({
+        userId: currentUser.id,
+        role: trainingRole,
+        classId: trainingRole === 'super_admin' ? 'all' : trainingClass
+      });
       await refreshProfile();
-      showToast('تم التبديل 🔄', `دلوقتي إنت داخل كـ ${ROLE_LABELS[trainingRole]}`, 0, 'success');
+      showToast('تم التبديل 🔄', `دلوقتي إنت داخل بدور: ${ROLE_LABELS[trainingRole]}`, 0, 'success');
     } catch (err) {
       showToast('خطأ', err.message || 'تعذر تبديل الدور', 0, 'error');
     } finally {
@@ -64,73 +89,116 @@ export default function MyProfile() {
     }
   };
 
-  const inputClass = 'w-full px-4 py-2.5 rounded-xl border border-slate-200 bg-slate-50 focus:bg-white focus:ring-2 focus:ring-sky-500 focus:border-sky-500 outline-none font-bold text-sm transition-all';
-
   return (
     <div className="space-y-6 dir-rtl text-right max-w-2xl mx-auto">
 
-      <div className="rounded-3xl bg-gradient-to-l from-sky-600 to-indigo-700 p-6 shadow-lg">
+      {/* Banner */}
+      <div className="relative rounded-3xl overflow-hidden bg-gradient-to-l from-sky-600 to-indigo-700 p-6 shadow-lg">
         <div className="flex items-center gap-4">
           <div className="w-16 h-16 rounded-2xl bg-white/15 border border-white/30 flex items-center justify-center shrink-0">
             <UserCircle2 className="w-9 h-9 text-white" />
           </div>
           <div>
             <h2 className="text-xl font-extrabold text-white">بياناتي</h2>
-            <p className="text-sky-100 text-xs mt-1">تقدر تعدّل بياناتك من هنا بنفسك في أي وقت</p>
+            <p className="text-sky-100 text-xs mt-1">بياناتك الأساسية — تقدر تعدّل {isStudent ? 'رقم تليفونك' : 'اسمك ورقم تليفونك'} من هنا بنفسك</p>
           </div>
         </div>
       </div>
 
+      {/* Read-only summary */}
       <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm space-y-3">
-        <Row label="الصفة" value={ROLE_LABELS[currentUser.role] || currentUser.role} />
-        {isStudent && <Row label="الفصل" value={getClassName(currentUser.class_id)} />}
-        {currentUser.username && <Row label="كود الدخول" value={currentUser.username} mono last />}
-        {currentUser.username && <p className="text-[10px] text-slate-400 font-bold">كود الدخول ثابت حتى لو غيّرت رقم تليفونك.</p>}
+        <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+          <span className="text-xs font-bold text-slate-500">الاسم</span>
+          <span className="font-extrabold text-slate-900">{currentUser.name}</span>
+        </div>
+        <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+          <span className="text-xs font-bold text-slate-500">الصفة</span>
+          <span className="font-bold text-sm">{ROLE_LABELS[currentUser.role] || currentUser.role}</span>
+        </div>
+        {className && (
+          <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+            <span className="text-xs font-bold text-slate-500">الفصل</span>
+            <span className="font-bold text-sm text-slate-700">{className}</span>
+          </div>
+        )}
+        {currentUser.username && (
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-bold text-slate-500">كود الدخول</span>
+            <span className="font-mono font-extrabold text-sm text-sky-700">{currentUser.username}</span>
+          </div>
+        )}
       </div>
 
+      {/* Editable fields */}
       <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm space-y-4">
         <h3 className="font-extrabold text-slate-800 text-sm flex items-center gap-2">
-          <User className="w-4 h-4 text-sky-600" /> بياناتي الشخصية
+          <Phone className="w-4 h-4 text-sky-600" /> بيانات التواصل
         </h3>
 
-        <div>
-          <label className="block text-xs font-bold text-slate-500 mb-1.5">الاسم بالكامل</label>
-          <input type="text" value={name} onChange={(e) => setName(e.target.value)} className={inputClass} />
-        </div>
+        {!isStudent && (
+          <div>
+            <label className="block text-xs font-bold text-slate-500 mb-1.5 flex items-center gap-1.5">
+              <UserCircle2 className="w-3.5 h-3.5" /> الاسم
+            </label>
+            <input
+              type="text"
+              value={name}
+              maxLength={100}
+              onChange={(e) => setName(e.target.value)}
+              className="w-full px-4 py-2.5 rounded-xl border border-slate-200 bg-slate-50 focus:bg-white focus:ring-2 focus:ring-sky-500 focus:border-sky-500 outline-none font-bold text-sm transition-all"
+            />
+          </div>
+        )}
 
         <div>
-          <label className="block text-xs font-bold text-slate-500 mb-1.5 flex items-center gap-1.5"><Phone className="w-3.5 h-3.5" /> رقم التليفون</label>
-          <input type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="01xxxxxxxxx" className={inputClass} />
+          <label className="block text-xs font-bold text-slate-500 mb-1.5">رقم التليفون</label>
+          <input
+            type="tel"
+            value={phone}
+            onChange={(e) => setPhone(e.target.value)}
+            placeholder="01xxxxxxxxx"
+            className="w-full px-4 py-2.5 rounded-xl border border-slate-200 bg-slate-50 focus:bg-white focus:ring-2 focus:ring-sky-500 focus:border-sky-500 outline-none font-bold text-sm transition-all"
+          />
         </div>
 
+        {/* طلب Mr. Gerges 2026-09-27: عيد الميلاد — متاح لكل الأدوار (مش
+            بس المخدوم)، عشان أمين الخدمة يشوف أعياد ميلاد الخدام شهريًا. */}
         <div>
           <label className="block text-xs font-bold text-slate-500 mb-1.5 flex items-center gap-1.5">
             <Cake className="w-3.5 h-3.5" /> تاريخ الميلاد
           </label>
-          <input type="date" value={birthDate} onChange={(e) => setBirthDate(e.target.value)} className={inputClass} />
-        </div>
-
-        <div>
-          <label className="block text-xs font-bold text-slate-500 mb-1.5 flex items-center gap-1.5">
-            <Church className="w-3.5 h-3.5" /> أب الاعتراف
-          </label>
-          <input type="text" value={confessionFather} onChange={(e) => setConfessionFather(e.target.value)} placeholder="مثلاً: أبونا ..." className={inputClass} />
-        </div>
-
-        <div>
-          <label className="block text-xs font-bold text-slate-500 mb-1.5 flex items-center gap-1.5">
-            <MapPin className="w-3.5 h-3.5" /> العنوان
-          </label>
-          <input type="text" value={address} onChange={(e) => setAddress(e.target.value)} className={inputClass} />
+          <input
+            type="date"
+            value={birthDate}
+            onChange={(e) => setBirthDate(e.target.value)}
+            className="w-full px-4 py-2.5 rounded-xl border border-slate-200 bg-slate-50 focus:bg-white focus:ring-2 focus:ring-sky-500 focus:border-sky-500 outline-none font-bold text-sm transition-all"
+          />
         </div>
 
         {isStudent && (
           <>
             <div>
               <label className="block text-xs font-bold text-slate-500 mb-1.5 flex items-center gap-1.5">
+                <MapPin className="w-3.5 h-3.5" /> العنوان
+              </label>
+              <input
+                type="text"
+                value={address}
+                onChange={(e) => setAddress(e.target.value)}
+                className="w-full px-4 py-2.5 rounded-xl border border-slate-200 bg-slate-50 focus:bg-white focus:ring-2 focus:ring-sky-500 focus:border-sky-500 outline-none font-bold text-sm transition-all"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-bold text-slate-500 mb-1.5 flex items-center gap-1.5">
                 <Users2 className="w-3.5 h-3.5" /> رقم ولي الأمر
               </label>
-              <input type="tel" value={guardianPhone} onChange={(e) => setGuardianPhone(e.target.value)} placeholder="01xxxxxxxxx" className={inputClass} />
+              <input
+                type="tel"
+                value={guardianPhone}
+                onChange={(e) => setGuardianPhone(e.target.value)}
+                placeholder="01xxxxxxxxx"
+                className="w-full px-4 py-2.5 rounded-xl border border-slate-200 bg-slate-50 focus:bg-white focus:ring-2 focus:ring-sky-500 focus:border-sky-500 outline-none font-bold text-sm transition-all"
+              />
             </div>
           </>
         )}
@@ -145,28 +213,46 @@ export default function MyProfile() {
         </button>
       </div>
 
+      {/* طلب Mr. Gerges 2026-09-25: تبديل الدور — ظاهر بس لو is_training_account
+          = true على صف الحساب ده (مش أي حساب تاني، حتى أمين الخدمة الحقيقي).
+          الصلاحية الحقيقية متأكد منها سيرفر سايد جوه switch_training_role() —
+          الإخفاء هنا مجرد واجهة، مش الحماية. */}
       {isTrainingAccount && (
         <div className="bg-amber-50 rounded-2xl border-2 border-dashed border-amber-300 p-5 shadow-sm space-y-4">
           <h3 className="font-extrabold text-amber-900 text-sm flex items-center gap-2">
             <ShieldCheck className="w-4 h-4 text-amber-600" /> وضع التدريب — تبديل الدور
           </h3>
           <p className="text-xs text-amber-800 font-medium -mt-2">
-            ده حساب تدريب — اختار تدخل كخادم أو كمخدومة عشان توري الخدام الموقع من الناحيتين.
+            ده حساب تدريب مخصوص — اختار الدور اللي عايز توريه للخدام وأنت بتشرحلهم، والموقع كله هيتصرف بنفس صلاحيات الدور ده فورًا.
           </p>
 
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="block text-xs font-bold text-amber-700 mb-1.5">الدور</label>
-              <select value={trainingRole} onChange={(e) => setTrainingRole(e.target.value)} className="w-full px-3 py-2.5 rounded-xl border border-amber-200 bg-white font-bold text-sm">
+              <select
+                value={trainingRole}
+                onChange={(e) => setTrainingRole(e.target.value)}
+                className="w-full px-3 py-2.5 rounded-xl border border-amber-200 bg-white focus:ring-2 focus:ring-amber-500 outline-none font-bold text-sm"
+              >
+                <option value="super_admin">👑 أمين خدمة عامة</option>
+                <option value="class_admin">⛪️ أمين فصل</option>
+                <option value="assistant_admin">🤝 أمين فصل مساعد</option>
                 <option value="servant">✝️ خادم</option>
-                <option value="student">🌸 مخدومة</option>
+                <option value="student">🧒 مخدوم</option>
               </select>
             </div>
-            {trainingRole === 'student' && (
+
+            {trainingRole !== 'super_admin' && (
               <div>
                 <label className="block text-xs font-bold text-amber-700 mb-1.5">الفصل</label>
-                <select value={trainingClass} onChange={(e) => setTrainingClass(e.target.value)} className="w-full px-3 py-2.5 rounded-xl border border-amber-200 bg-white font-bold text-sm">
-                  {CLASSES.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                <select
+                  value={trainingClass}
+                  onChange={(e) => setTrainingClass(e.target.value)}
+                  className="w-full px-3 py-2.5 rounded-xl border border-amber-200 bg-white focus:ring-2 focus:ring-amber-500 outline-none font-bold text-sm"
+                >
+                  {CLASSES.map(c => (
+                    <option key={c.id} value={c.id}>{c.name}</option>
+                  ))}
                 </select>
               </div>
             )}
@@ -182,15 +268,6 @@ export default function MyProfile() {
           </button>
         </div>
       )}
-    </div>
-  );
-}
-
-function Row({ label, value, strong, mono, last }) {
-  return (
-    <div className={`flex items-center justify-between ${last ? '' : 'border-b border-slate-100 pb-3'}`}>
-      <span className="text-xs font-bold text-slate-500">{label}</span>
-      <span className={`${strong ? 'font-extrabold text-slate-900' : 'font-bold text-sm text-slate-700'} ${mono ? 'font-mono text-sky-700' : ''}`}>{value}</span>
     </div>
   );
 }

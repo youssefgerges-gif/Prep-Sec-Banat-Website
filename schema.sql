@@ -86,6 +86,12 @@ CREATE TABLE IF NOT EXISTS public.points_ledger (
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
+-- تسميع الآية (3 نقاط) بيتسجل كصف في points_ledger بنفس وقت سجل الحضور.
+-- الفهرس ده بيمنع إن نفس المخدومة تاخد نقاط التسميع مرتين لنفس الحضور.
+CREATE UNIQUE INDEX IF NOT EXISTS points_ledger_verse_once
+  ON public.points_ledger (student_id, created_at)
+  WHERE reason = 'تسميع الآية';
+
 ALTER TABLE public.users ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.attendance_logs ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.points_ledger ENABLE ROW LEVEL SECURITY;
