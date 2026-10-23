@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Cake, Gift, ChevronRight, ChevronLeft, CheckCircle2, Undo2, Loader2, PartyPopper, MessageCircle, Search } from 'lucide-react';
+import { Cake, Gift, ChevronRight, ChevronLeft, CheckCircle2, Undo2, Loader2, PartyPopper, MessageCircle, Search, CalendarDays, ChevronDown } from 'lucide-react';
 import {
   getBirthdays, markGiftReceived, unmarkGiftReceived, getCairoToday, getLastThursday,
   ARABIC_MONTHS, CLASSES, getClassName
@@ -25,6 +25,9 @@ export default function Birthdays() {
   const [searchQuery, setSearchQuery] = useState('');
   const [busyId, setBusyId] = useState(null);
   const [whatsappRecipient, setWhatsappRecipient] = useState(null);
+  // ليستة الشهور (عشان تفتح أي شهر فات بلمسة).
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [pickerYear, setPickerYear] = useState(today.year);
 
   useEffect(() => {
     let mounted = true;
@@ -49,7 +52,8 @@ export default function Birthdays() {
   const partyDay = getLastThursday(year, month);
   const isCurrentMonth = year === today.year && month === today.month;
   const isPartyToday = isCurrentMonth && today.day === partyDay;
-  const partyPassed = isCurrentMonth && today.day > partyDay;
+  const isPastMonth = year < today.year || (year === today.year && month < today.month);
+  const partyPassed = isPastMonth || (isCurrentMonth && today.day > partyDay);
 
   const receivedCount = list.filter(s => s.received_at).length;
   const pendingCount = list.length - receivedCount;
@@ -102,21 +106,71 @@ export default function Birthdays() {
         </div>
 
         <div className="flex items-center justify-between bg-black/15 rounded-2xl p-1.5">
-          <button type="button" onClick={() => shiftMonth(-1)} className="w-10 h-10 rounded-xl hover:bg-white/15 flex items-center justify-center" aria-label="الشهر اللي فات">
-            <ChevronRight className="w-5 h-5" />
+          <button type="button" onClick={() => shiftMonth(-1)} className="h-10 px-2 rounded-xl hover:bg-white/15 flex items-center gap-1 text-[11px] font-bold" aria-label="الشهر اللي فات">
+            <ChevronRight className="w-5 h-5" /> <span className="hidden sm:inline">اللي فات</span>
           </button>
           <div className="text-center">
-            <span className="block font-black text-lg">{ARABIC_MONTHS[month - 1]} {year}</span>
+            <button
+              type="button"
+              onClick={() => { setPickerYear(year); setPickerOpen(o => !o); }}
+              className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl hover:bg-white/15 font-black text-lg"
+              aria-expanded={pickerOpen}
+            >
+              <CalendarDays className="w-4 h-4" /> {ARABIC_MONTHS[month - 1]} {year}
+              <ChevronDown className={`w-4 h-4 transition-transform ${pickerOpen ? 'rotate-180' : ''}`} />
+            </button>
             {!isCurrentMonth && (
-              <button type="button" onClick={() => { setMonth(today.month); setYear(today.year); }} className="text-[11px] font-bold text-pink-100 underline">
+              <button type="button" onClick={() => { setMonth(today.month); setYear(today.year); setPickerOpen(false); }} className="block mx-auto text-[11px] font-bold text-pink-100 underline">
                 ارجع للشهر الحالي
               </button>
             )}
           </div>
-          <button type="button" onClick={() => shiftMonth(1)} className="w-10 h-10 rounded-xl hover:bg-white/15 flex items-center justify-center" aria-label="الشهر الجاي">
-            <ChevronLeft className="w-5 h-5" />
+          <button type="button" onClick={() => shiftMonth(1)} className="h-10 px-2 rounded-xl hover:bg-white/15 flex items-center gap-1 text-[11px] font-bold" aria-label="الشهر الجاي">
+            <span className="hidden sm:inline">الجاي</span> <ChevronLeft className="w-5 h-5" />
           </button>
         </div>
+
+        {pickerOpen && (
+          <div className="mt-3 bg-white rounded-2xl p-3 text-slate-800 shadow-lg">
+            <div className="flex items-center justify-between mb-2">
+              <button type="button" onClick={() => setPickerYear(y => y - 1)} className="w-8 h-8 rounded-lg hover:bg-slate-100 flex items-center justify-center" aria-label="السنة اللي فاتت">
+                <ChevronRight className="w-4 h-4" />
+              </button>
+              <span className="font-black text-sm">{pickerYear}</span>
+              <button type="button" onClick={() => setPickerYear(y => y + 1)} className="w-8 h-8 rounded-lg hover:bg-slate-100 flex items-center justify-center" aria-label="السنة الجاية">
+                <ChevronLeft className="w-4 h-4" />
+              </button>
+            </div>
+            <div className="grid grid-cols-3 sm:grid-cols-4 gap-1.5">
+              {ARABIC_MONTHS.map((name, i) => {
+                const m = i + 1;
+                const selected = pickerYear === year && m === month;
+                const current = pickerYear === today.year && m === today.month;
+                const past = pickerYear < today.year || (pickerYear === today.year && m < today.month);
+                return (
+                  <button
+                    key={name}
+                    type="button"
+                    onClick={() => { setMonth(m); setYear(pickerYear); setPickerOpen(false); }}
+                    className={`py-2 rounded-xl text-xs font-black border transition-all ${
+                      selected
+                        ? 'bg-pink-600 text-white border-pink-600'
+                        : current
+                          ? 'bg-pink-50 text-pink-700 border-pink-300'
+                          : past
+                            ? 'bg-slate-50 text-slate-600 border-slate-200 hover:border-pink-300'
+                            : 'bg-white text-slate-800 border-slate-200 hover:border-pink-300'
+                    }`}
+                  >
+                    {name}
+                    {current && <span className="block text-[9px] font-bold">الشهر ده</span>}
+                    {past && !selected && <span className="block text-[9px] font-bold text-slate-400">عدّى</span>}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
       </div>
 
       {isPartyToday && (
