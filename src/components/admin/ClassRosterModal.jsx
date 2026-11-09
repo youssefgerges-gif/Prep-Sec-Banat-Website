@@ -19,15 +19,18 @@ export default function ClassRosterModal({ isOpen, onClose, classInfo, users, at
   const [busy, setBusy] = useState(null);
 
   const meetingDate = getCurrentMeetingDate();
-  const [, meetingMonth, meetingDay] = meetingDate.split('-').map(Number);
-  const meetingLabel = `الخميس ${meetingDay} ${ARABIC_MONTHS[meetingMonth - 1]}`;
+  const meetingLabel = (() => {
+    if (!meetingDate) return null;
+    const [, m, d] = meetingDate.split('-').map(Number);
+    return `الخميس ${d} ${ARABIC_MONTHS[m - 1]}`;
+  })();
 
   // سجل حضور كل مخدومة في الخميس الحالي بس (من قاعدة البيانات)، عشان التراجع
   // يشتغل في أي وقت، ومستحيل تلغي بالغلط حضور أسبوع قديم.
   const lastAttendedMap = useMemo(() => {
     const map = new Map();
     (attendanceLogs || []).forEach(log => {
-      if (getCairoDateISO(log.timestamp) !== meetingDate) return;
+      if (!meetingDate || getCairoDateISO(log.timestamp) !== meetingDate) return;
       const t = new Date(log.timestamp);
       const prev = map.get(log.user_id);
       if (!prev || t > prev.date) {
@@ -203,7 +206,9 @@ export default function ClassRosterModal({ isOpen, onClose, classInfo, users, at
           <div className="flex items-center justify-between mb-2 gap-2 flex-wrap">
             <h4 className="text-xs font-black text-slate-800 flex items-center gap-1.5">
               <Users className="w-4 h-4 text-indigo-600" /> المخدومات ({students.length})
-              <span className="text-[10px] font-bold text-sky-700 bg-sky-50 border border-sky-200 rounded-full px-2 py-0.5">حضور {meetingLabel}</span>
+              {meetingLabel
+                ? <span className="text-[10px] font-bold text-sky-700 bg-sky-50 border border-sky-200 rounded-full px-2 py-0.5">حضور {meetingLabel}</span>
+                : <span className="text-[10px] font-bold text-slate-500 bg-slate-100 border border-slate-200 rounded-full px-2 py-0.5">الكشف بيتفتح يوم الخميس</span>}
             </h4>
             {students.length > 0 && (
               <span className="text-[10px] font-bold text-slate-500">

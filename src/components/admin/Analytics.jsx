@@ -35,7 +35,7 @@ export default function Analytics() {
   const meetingDate = getCurrentMeetingDate();
   const presentThisWeek = new Set(
     attendanceLogs
-      .filter(l => getCairoDateISO(l.timestamp) === meetingDate)
+      .filter(l => meetingDate && getCairoDateISO(l.timestamp) === meetingDate)
       .map(l => l.user_id)
   );
 

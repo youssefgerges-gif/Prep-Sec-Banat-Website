@@ -671,7 +671,7 @@ export async function getServiceStats() {
   const meetingDate = getCurrentMeetingDate();
   const attendedThisWeek = new Set(
     logs
-      .filter(l => getCairoDateISO(l.timestamp) === meetingDate)
+      .filter(l => meetingDate && getCairoDateISO(l.timestamp) === meetingDate)
       .map(l => l.user_id)
   );
   const presentCount = students.filter(s => attendedThisWeek.has(s.id)).length;
@@ -711,11 +711,12 @@ export function getCairoDateISO(value) {
   return getCairoToday(new Date(value)).iso;
 }
 
-// ميعاد الاجتماع الحالي: آخر خميس (النهارده لو النهارده خميس). "حاضرة" في
-// الكشف والإحصائيات = حضرت في الخميس ده بالظبط، مش "آخر 7 أيام" — عشان
-// حضور الأسبوع اللي فات ميفضلش ظاهر يوم الخميس الجديد.
+// ميعاد الاجتماع الحالي: النهارده لو النهارده خميس (بتوقيت القاهرة)، وإلا
+// null. "حاضرة" في الكشف والإحصائيات = حضرت النهارده (الخميس) بس — فالكشف
+// بيبقى فاضي باقي أيام الأسبوع، وبيبدأ من جديد الساعة 12 بالليل أول الخميس.
+// (حضور أي خميس فات بيتشاف من تاب "الحضور" باختيار التاريخ.)
 export function getCurrentMeetingDate(date = new Date()) {
-  return getRecentThursdays(1, date)[0];
+  return isMeetingDay(date) ? getCairoToday(date).iso : null;
 }
 
 // السنة والشهر واليوم النهارده بتوقيت القاهرة.
