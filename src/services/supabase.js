@@ -647,7 +647,7 @@ const applyContactUpdate = (row, { phone, birthDate, clearBirthDate, address, gu
   return updated;
 };
 
-// إحصائيات عامة: إجمالي النقاط الموزعة، ونسبة المخدومات اللي حضرت آخر 7 أيام.
+// إحصائيات عامة: إجمالي النقاط الموزعة، ونسبة المخدومات اللي حضرت الخميس ده.
 export async function getServiceStats() {
   let students, logs, ledger;
   if (isSupabaseConfigured()) {
@@ -668,10 +668,10 @@ export async function getServiceStats() {
     .filter(entry => Number(entry.amount) > 0)
     .reduce((sum, entry) => sum + Number(entry.amount), 0);
 
-  const now = new Date();
+  const meetingDate = getCurrentMeetingDate();
   const attendedThisWeek = new Set(
     logs
-      .filter(l => (now - new Date(l.timestamp)) / (1000 * 60 * 60 * 24) < 7)
+      .filter(l => getCairoDateISO(l.timestamp) === meetingDate)
       .map(l => l.user_id)
   );
   const presentCount = students.filter(s => attendedThisWeek.has(s.id)).length;
@@ -705,6 +705,18 @@ export async function getAttendanceLogs() {
 // أعياد الميلاد وهدايا الحفلة الشهرية
 // ==========================================
 export const ARABIC_MONTHS = ['يناير', 'فبراير', 'مارس', 'أبريل', 'مايو', 'يونيو', 'يوليو', 'أغسطس', 'سبتمبر', 'أكتوبر', 'نوفمبر', 'ديسمبر'];
+
+// تاريخ أي وقت بتوقيت القاهرة (YYYY-MM-DD).
+export function getCairoDateISO(value) {
+  return getCairoToday(new Date(value)).iso;
+}
+
+// ميعاد الاجتماع الحالي: آخر خميس (النهارده لو النهارده خميس). "حاضرة" في
+// الكشف والإحصائيات = حضرت في الخميس ده بالظبط، مش "آخر 7 أيام" — عشان
+// حضور الأسبوع اللي فات ميفضلش ظاهر يوم الخميس الجديد.
+export function getCurrentMeetingDate(date = new Date()) {
+  return getRecentThursdays(1, date)[0];
+}
 
 // السنة والشهر واليوم النهارده بتوقيت القاهرة.
 export function getCairoToday(date = new Date()) {

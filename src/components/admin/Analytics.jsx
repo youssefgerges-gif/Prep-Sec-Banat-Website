@@ -1,11 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { Users, UserCheck, Award, TrendingUp, ChevronLeft, CalendarCheck, GraduationCap, Cake } from 'lucide-react';
-import { getUsers, getAttendanceLogs, getVerseRecitations, getServiceStats, CLASSES, getCairoToday, ARABIC_MONTHS } from '../../services/supabase';
+import { getUsers, getAttendanceLogs, getVerseRecitations, getServiceStats, CLASSES, getCairoToday, ARABIC_MONTHS, getCairoDateISO, getCurrentMeetingDate } from '../../services/supabase';
 import { usePoints } from '../../context/PointsContext';
 import ClassRosterModal from './ClassRosterModal';
 
-// "حاضرة هذا الأسبوع" = حضرت خلال آخر 7 أيام (نفس تعريف كشف الفصل).
-const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
+// "حضرت الأسبوع ده" = حضرت في الخميس الحالي بالظبط (نفس تعريف كشف الفصل).
 
 export default function Analytics() {
   const { refreshKey } = usePoints();
@@ -33,10 +32,10 @@ export default function Analytics() {
   const students = allUsers.filter(u => u.role === 'student');
   const servantsCount = allUsers.filter(u => (u.role === 'servant' || u.role === 'admin') && (u.status || 'active') === 'active').length;
 
-  const now = Date.now();
+  const meetingDate = getCurrentMeetingDate();
   const presentThisWeek = new Set(
     attendanceLogs
-      .filter(l => now - new Date(l.timestamp).getTime() < WEEK_MS)
+      .filter(l => getCairoDateISO(l.timestamp) === meetingDate)
       .map(l => l.user_id)
   );
 

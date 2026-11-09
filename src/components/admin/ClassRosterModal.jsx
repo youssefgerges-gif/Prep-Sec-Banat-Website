@@ -3,15 +3,13 @@ import { UserX, Undo2, Users, Loader2, BookOpen, Check } from 'lucide-react';
 import Modal from '../common/Modal';
 import {
   recordAttendance, cancelAttendance, recordVerseRecitation, cancelVerseRecitation,
-  getAttendancePoints, VERSE_POINTS
+  getAttendancePoints, VERSE_POINTS, getCairoDateISO, getCurrentMeetingDate, ARABIC_MONTHS
 } from '../../services/supabase';
 import { usePoints } from '../../context/PointsContext';
 
-// "حاضر" here means: attended within the last 7 days (same rolling window
-// getServiceStats() in supabase.js already uses for its own weekly
-// attendance-rate calculation) — matches a weekly meeting rhythm
-// without needing a separate "which week is this" concept.
-const PRESENT_WINDOW_DAYS = 7;
+// "حاضرة" = حضرت في الخميس الحالي بالظبط (آخر خميس، أو النهارده لو خميس)
+// بتوقيت القاهرة. أول ما ييجي خميس جديد، الكشف بيبدأ فاضي من غير ما حضور
+// الأسبوع اللي فات يظهر.
 
 const pointsWord = (n) => (n > 2 && n < 11 ? 'نقاط' : 'نقطة');
 
@@ -20,12 +18,16 @@ export default function ClassRosterModal({ isOpen, onClose, classInfo, users, at
   // العملية الجارية: { id, kind: 'attend' | 'verse' } — عشان نمنع دوستين ورا بعض.
   const [busy, setBusy] = useState(null);
 
-  // آخر سجل حضور لكل مخدومة (من قاعدة البيانات)، عشان التراجع يشتغل في أي
-  // وقت مش بس في نفس الجلسة. "حاضرة" = حضرت خلال آخر 7 أيام، فمستحيل تلغي
-  // بالغلط حضور أقدم من أسبوع.
+  const meetingDate = getCurrentMeetingDate();
+  const [, meetingMonth, meetingDay] = meetingDate.split('-').map(Number);
+  const meetingLabel = `الخميس ${meetingDay} ${ARABIC_MONTHS[meetingMonth - 1]}`;
+
+  // سجل حضور كل مخدومة في الخميس الحالي بس (من قاعدة البيانات)، عشان التراجع
+  // يشتغل في أي وقت، ومستحيل تلغي بالغلط حضور أسبوع قديم.
   const lastAttendedMap = useMemo(() => {
     const map = new Map();
     (attendanceLogs || []).forEach(log => {
+      if (getCairoDateISO(log.timestamp) !== meetingDate) return;
       const t = new Date(log.timestamp);
       const prev = map.get(log.user_id);
       if (!prev || t > prev.date) {
@@ -33,7 +35,7 @@ export default function ClassRosterModal({ isOpen, onClose, classInfo, users, at
       }
     });
     return map;
-  }, [attendanceLogs]);
+  }, [attendanceLogs, meetingDate]);
 
   // التسميع بيتسجل بنفس وقت سجل الحضور — فبنربطه بيه بالوقت.
   const verseByKey = useMemo(() => {
@@ -44,12 +46,7 @@ export default function ClassRosterModal({ isOpen, onClose, classInfo, users, at
     return map;
   }, [verseRecitations]);
 
-  const isPresent = (userId) => {
-    const last = lastAttendedMap.get(userId);
-    if (!last) return false;
-    const days = (new Date() - last.date) / (1000 * 60 * 60 * 24);
-    return days < PRESENT_WINDOW_DAYS;
-  };
+  const isPresent = (userId) => lastAttendedMap.has(userId);
 
   const getVerse = (userId) => {
     const last = lastAttendedMap.get(userId);
@@ -206,6 +203,7 @@ export default function ClassRosterModal({ isOpen, onClose, classInfo, users, at
           <div className="flex items-center justify-between mb-2 gap-2 flex-wrap">
             <h4 className="text-xs font-black text-slate-800 flex items-center gap-1.5">
               <Users className="w-4 h-4 text-indigo-600" /> المخدومات ({students.length})
+              <span className="text-[10px] font-bold text-sky-700 bg-sky-50 border border-sky-200 rounded-full px-2 py-0.5">حضور {meetingLabel}</span>
             </h4>
             {students.length > 0 && (
               <span className="text-[10px] font-bold text-slate-500">
